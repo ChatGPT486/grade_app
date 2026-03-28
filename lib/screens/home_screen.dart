@@ -54,29 +54,49 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _export() async {
-    if (_students.isEmpty) {
-      _showError('No students to export.');
-      return;
-    }
-    setState(() => _exporting = true);
-    try {
-      final path = await ExcelService.exportByCourse(_students);
-      if (mounted) {
-          ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Exported: $path'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-        ));
-      }
-    } catch (e) {
-      _showError('Export failed: $e');
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
+ Future<void> _export() async {
+  if (_students.isEmpty) {
+    _showError('No students to export.');
+    return;
   }
-
+  
+  setState(() => _exporting = true);
+  
+  try {
+    final path = await ExcelService.exportByCourse(_students);
+    
+    if (mounted) {
+      // Show success with file location
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('✅ File saved successfully!'),
+              Text(
+                'Location: ${path.split('/').last}',
+                style: TextStyle(fontSize: 12),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Check your Downloads folder',
+                style: TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  } catch (e) {
+    _showError('Export failed: ${e.toString()}');
+  } finally {
+    if (mounted) setState(() => _exporting = false);
+  }
+}
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
