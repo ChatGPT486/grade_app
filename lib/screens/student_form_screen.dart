@@ -43,10 +43,20 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
     _previewCa1 = s?.ca1 ?? 0;
     _previewCa2 = s?.ca2 ?? 0;
     _previewExam = s?.exam ?? 0;
+    
+    // Add listeners to update preview automatically
+    _ca1.addListener(_updatePreview);
+    _ca2.addListener(_updatePreview);
+    _exam.addListener(_updatePreview);
   }
 
   @override
   void dispose() {
+    // Remove listeners
+    _ca1.removeListener(_updatePreview);
+    _ca2.removeListener(_updatePreview);
+    _exam.removeListener(_updatePreview);
+    
     for (final c in [_name, _matricule, _email, _course, _ca1, _ca2, _exam]) {
       c.dispose();
     }
@@ -64,19 +74,30 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
   double get _previewTotal => _previewCa1 + _previewCa2 + _previewExam;
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    // Validate form first
+    if (!_formKey.currentState!.validate()) {
+      _showError('Please fix the validation errors');
+      return;
+    }
+    
     setState(() => _loading = true);
 
     try {
-      // Check duplicate matricule
+      // Check duplicate matricule (skip if editing same record)
       final exists = await _db.matriculeExists(
         _matricule.text.trim(),
         excludeId: widget.student?.id,
       );
       if (exists) {
         _showError('Matricule already exists in the database.');
+        setState(() => _loading = false);
         return;
       }
+
+      // Parse marks safely
+      final ca1Value = double.tryParse(_ca1.text) ?? 0;
+      final ca2Value = double.tryParse(_ca2.text) ?? 0;
+      final examValue = double.tryParse(_exam.text) ?? 0;
 
       final record = StudentRecord(
         id: widget.student?.id,
@@ -84,29 +105,42 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
         matricule: _matricule.text.trim().toUpperCase(),
         email: _email.text.trim().toLowerCase(),
         course: _course.text.trim(),
-        ca1: double.parse(_ca1.text),
-        ca2: double.parse(_ca2.text),
-        exam: double.parse(_exam.text),
+        ca1: ca1Value,
+        ca2: ca2Value,
+        exam: examValue,
       );
 
       if (_isEdit) {
         await _db.update(record);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Student updated successfully!'), backgroundColor: Colors.green),
+          );
+        }
       } else {
         await _db.insert(record);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Student added successfully!'), backgroundColor: Colors.green),
+          );
+        }
       }
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
+      print('Error in _submit: $e'); // Add logging for debugging
       _showError('Error: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      setState(() => _loading = false);
     }
   }
 
   void _showError(String msg) {
-    setState(() => _loading = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -125,21 +159,29 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
         foregroundColor: Colors.white,
         title: Text(_isEdit ? 'Edit Student' : 'Add Student'),
         actions: [
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white)),
-            )
-          else
-            TextButton.icon(
-              onPressed: _submit,
-              icon: const Icon(Icons.save, color: Colors.white),
-              label: const Text('Save', style: TextStyle(color: Colors.white)),
+          // Save button in AppBar
+          TextButton(
+            onPressed: _loading ? null : _submit, // Disable when loading
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
             ),
+            child: _loading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Row(
+                    children: [
+                      Icon(Icons.save, size: 20),
+                      SizedBox(width: 4),
+                      Text('Save'),
+                    ],
+                  ),
+          ),
         ],
       ),
       body: Form(
@@ -320,6 +362,28 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
                   ],
                 ),
               ),
+              
+              // Add a floating save button at the bottom for better UX
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: colors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('SAVE STUDENT', style: TextStyle(fontSize: 16)),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -424,12 +488,12 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
             if (v == null || v.isEmpty) return 'Required';
             final val = double.tryParse(v);
             if (val == null || val < 0 || val > maxValue) {
-              return '0–\${maxValue.toInt()}';
+              return '0-${maxValue.toInt()}';
             }
             return null;
           },
           decoration: InputDecoration(
-            hintText: '0-\${maxValue.toInt()}',
+            hintText: '0-${maxValue.toInt()}',
             border: OutlineInputBorder(
                 borderSide: BorderSide(color: color)),
             focusedBorder: OutlineInputBorder(
