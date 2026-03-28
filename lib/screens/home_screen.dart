@@ -35,24 +35,32 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final students = await _db.fetchAll();
-      final courses = students.map((s) => s.course).toSet().toList()..sort();
-      _tabController?.dispose();
-      _tabController = TabController(
-          length: courses.length + 1, vsync: this); // +1 for "All"
-      setState(() {
-        _students = students;
-        _courses = courses;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() => _loading = false);
-      _showError('Failed to load: $e');
-    }
+ Future<void> _load() async {
+  setState(() => _loading = true);
+  try {
+    final students = await _db.fetchAll();
+    final courses = students.map((s) => s.course).toSet().toList()..sort();
+    
+    // Dispose old controller before creating new one
+    _tabController?.dispose();
+    
+    // Create new controller
+    _tabController = TabController(
+      length: courses.length + 1, 
+      vsync: this,
+      initialIndex: 0, // Add initial index
+    );
+    
+    setState(() {
+      _students = students;
+      _courses = courses;
+      _loading = false;
+    });
+  } catch (e) {
+    setState(() => _loading = false);
+    _showError('Failed to load: $e');
   }
+}
 
  Future<void> _export() async {
   if (_students.isEmpty) {
@@ -138,172 +146,182 @@ class _HomeScreenState extends State<HomeScreen>
         .toList();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final passing = _students.where((s) => s.isPassing).length;
-    final avgGpa = _students.isEmpty
-        ? 0.0
-        : _students.map((s) => s.gpa).reduce((a, b) => a + b) /
-            _students.length;
+ @override
+Widget build(BuildContext context) {
+  final colors = Theme.of(context).colorScheme;
+  final passing = _students.where((s) => s.isPassing).length;
+  final avgGpa = _students.isEmpty
+      ? 0.0
+      : _students.map((s) => s.gpa).reduce((a, b) => a + b) /
+          _students.length;
 
-    return Scaffold(
-      backgroundColor: colors.surface,
-      appBar: AppBar(
-        backgroundColor: colors.primary,
-        foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            ClipOval(
-              child: Image.asset(
-                'assets/ict_logo.png',
-                width: 38,
-                height: 38,
-                fit: BoxFit.cover,
-              ),
+  return Scaffold(
+    backgroundColor: colors.surface,
+    appBar: AppBar(
+      backgroundColor: colors.primary,
+      foregroundColor: Colors.white,
+      title: Row(
+        children: [
+          ClipOval(
+            child: Image.asset(
+              'assets/ict_logo.png',
+              width: 38,
+              height: 38,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 38,
+                  height: 38,
+                  color: Colors.white,
+                  child: Icon(Icons.school, color: colors.primary),
+                );
+              },
             ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('ICT University',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                Text('Grade Management',
-                    style: TextStyle(fontSize: 11, color: Colors.white70)),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _load,
           ),
-          if (_exporting)
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white)),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: 'Export to Excel',
-              onPressed: _export,
-            ),
+          const SizedBox(width: 10),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ICT University',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              Text('Grade Management',
+                  style: TextStyle(fontSize: 11, color: Colors.white70)),
+            ],
+          ),
         ],
-        bottom: _loading || _courses.isEmpty
-            ? null
-            : TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                indicatorColor: Colors.white,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white60,
-                tabs: [
-                  const Tab(text: 'All'),
-                  ..._courses.map((c) => Tab(text: c)),
-                ],
-              ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Stats banner
-                if (_students.isNotEmpty)
-                  Container(
-                    color: colors.primaryContainer,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _stat('Students', '${_students.length}', colors),
-                        _stat('Courses', '${_courses.length}', colors),
-                        _stat('Class GPA', avgGpa.toStringAsFixed(2), colors),
-                        _stat('Passing', '$passing',colors, color: Colors.green),
-                        _stat('Failing', '${_students.length - passing}',
-                            colors,
-                            color: _students.length - passing > 0
-                                ? Colors.red
-                                : null),
-                      ],
-                    ),
-                  ),
-
-                // Search bar
-                if (_students.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (v) => setState(() => _searchQuery = v),
-                      decoration: InputDecoration(
-                        hintText: 'Search by name, matricule or email…',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _searchQuery = '');
-                                })
-                            : null,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                        isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-
-                // Content
-                Expanded(
-                  child: _students.isEmpty
-                      ? _emptyState(colors)
-                      : _courses.isEmpty
-                          ? _emptyState(colors)
-                          : TabBarView(
-                              controller: _tabController,
-                              children: [
-                                // All students tab
-                                _studentList(_filtered(_students), colors),
-                                // Per-course tabs
-                                ..._courses.map((course) {
-                                  final courseStudents = _filtered(_students
-                                      .where((s) => s.course == course)
-                                      .toList());
-                                  return _studentList(
-                                      courseStudents, colors,
-                                      course: course);
-                                }),
-                              ],
-                            ),
-                ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refresh',
+          onPressed: _load,
+        ),
+        if (_exporting)
+          const Padding(
+            padding: EdgeInsets.all(14),
+            child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white)),
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.download),
+            tooltip: 'Export to Excel',
+            onPressed: _export,
+          ),
+      ],
+      bottom: _loading || _courses.isEmpty || _tabController == null
+          ? null
+          : TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white60,
+              tabs: [
+                const Tab(text: 'All'),
+                ..._courses.map((c) => Tab(text: c)),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const StudentFormScreen()),
-          );
-          if (result == true) _load();
-        },
-        backgroundColor: colors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Student'),
-      ),
-    );
-  }
+    ),
+    body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            children: [
+              // Stats banner
+              if (_students.isNotEmpty)
+                Container(
+                  color: colors.primaryContainer,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _stat('Students', '${_students.length}', colors),
+                      _stat('Courses', '${_courses.length}', colors),
+                      _stat('Class GPA', avgGpa.toStringAsFixed(2), colors),
+                      _stat('Passing', '$passing', colors, color: Colors.green),
+                      _stat('Failing', '${_students.length - passing}',
+                          colors,
+                          color: _students.length - passing > 0
+                              ? Colors.red
+                              : null),
+                    ],
+                  ),
+                ),
+
+              // Search bar
+              if (_students.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, matricule or email…',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              })
+                          : null,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30)),
+                      isDense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+
+              // Content
+              Expanded(
+                child: _students.isEmpty
+                    ? _emptyState(colors)
+                    : _courses.isEmpty
+                        ? _emptyState(colors)
+                        : _tabController == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : TabBarView(
+                                controller: _tabController,
+                                children: [
+                                  // All students tab
+                                  _studentList(_filtered(_students), colors),
+                                  // Per-course tabs
+                                  ..._courses.map((course) {
+                                    final courseStudents = _filtered(_students
+                                        .where((s) => s.course == course)
+                                        .toList());
+                                    return _studentList(
+                                        courseStudents, colors,
+                                        course: course);
+                                  }),
+                                ],
+                              ),
+              ),
+            ],
+          ),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: () async {
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const StudentFormScreen()),
+        );
+        if (result == true) _load();
+      },
+      backgroundColor: colors.primary,
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.person_add),
+      label: const Text('Add Student'),
+    ),
+  );
+}
 
   Widget _studentList(List<StudentRecord> list, ColorScheme colors,
       {String? course}) {
@@ -385,8 +403,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-// ── Student Card ──────────────────────────────────────────────────────────────
-
+// In your _StudentCard widget, update the onTap and navigation
 class _StudentCard extends StatelessWidget {
   final StudentRecord student;
   final int rank;
@@ -418,7 +435,7 @@ class _StudentCard extends StatelessWidget {
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: onEdit,
+        onTap: onEdit, // Use the callback directly
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),

@@ -29,26 +29,22 @@ class _StudentFormScreenState extends State<StudentFormScreen> {
   // Live preview values
   double _previewCa1 = 0, _previewCa2 = 0, _previewExam = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    final s = widget.student;
-    _name = TextEditingController(text: s?.name ?? '');
-    _matricule = TextEditingController(text: s?.matricule ?? '');
-    _email = TextEditingController(text: s?.email ?? '');
-    _course = TextEditingController(text: s?.course ?? '');
-    _ca1 = TextEditingController(text: s != null ? s.ca1.toStringAsFixed(0) : '');
-    _ca2 = TextEditingController(text: s != null ? s.ca2.toStringAsFixed(0) : '');
-    _exam = TextEditingController(text: s != null ? s.exam.toStringAsFixed(0) : '');
-    _previewCa1 = s?.ca1 ?? 0;
-    _previewCa2 = s?.ca2 ?? 0;
-    _previewExam = s?.exam ?? 0;
-    
-    // Add listeners to update preview automatically
-    _ca1.addListener(_updatePreview);
-    _ca2.addListener(_updatePreview);
-    _exam.addListener(_updatePreview);
-  }
+ // In your StudentFormScreen, ensure you're handling null properly
+@override
+void initState() {
+  super.initState();
+  final s = widget.student;
+  _name = TextEditingController(text: s?.name ?? '');
+  _matricule = TextEditingController(text: s?.matricule ?? '');
+  _email = TextEditingController(text: s?.email ?? '');
+  _course = TextEditingController(text: s?.course ?? '');
+  _ca1 = TextEditingController(text: s != null ? s.ca1.toStringAsFixed(0) : '');
+  _ca2 = TextEditingController(text: s != null ? s.ca2.toStringAsFixed(0) : '');
+  _exam = TextEditingController(text: s != null ? s.exam.toStringAsFixed(0) : '');
+  _previewCa1 = s?.ca1 ?? 0;
+  _previewCa2 = s?.ca2 ?? 0;
+  _previewExam = s?.exam ?? 0;
+}
 
   @override
   void dispose() {
